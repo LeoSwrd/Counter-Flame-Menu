@@ -1,0 +1,27 @@
+name: Build iOS Dylib
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compile arm64 Dylib
+        run: |
+          clang++ -arch arm64 \
+            -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \
+            -miphoneos-version-min=14.0 \
+            -dynamiclib -O2 -std=c++17 \
+            -framework UIKit -framework Foundation -framework QuartzCore -framework CoreGraphics \
+            CounterFlameHack.mm -o CounterFlameHack.dylib
+
+      - name: Upload Dylib Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CounterFlameHack-dylib
+          path: CounterFlameHack.dylib
