@@ -6,6 +6,7 @@
 #import <Foundation/Foundation.h>
 #import <mach-o/dyld.h>
 #import <mach/mach.h>
+#import <libkern/OSCacheControl.h>
 #import <dlfcn.h>
 #import <stdint.h>
 #import <vector>
@@ -14,8 +15,6 @@
 // ============================================================================
 // 1. GLOBAL CONFIGURATION & RVA OFFSETS (From Il2CppDumper dump.cs)
 // ============================================================================
-// Replace these fallback RVAs with exact offsets from your Counter Flame dump.cs
-// if symbol names are obfuscated. If symbols are intact, dynamic resolver handles it.
 namespace Offsets {
     constexpr uintptr_t Weapon_GetRecoil       = 0x18A4B20; // float GetRecoil()
     constexpr uintptr_t Weapon_GetSpread       = 0x18A4B88; // float GetSpread()
@@ -173,7 +172,6 @@ void ApplyChamsToRenderer(void* rendererInstance) {
     void* mat = u_get_material(rendererInstance);
     if (!mat) return;
 
-    // Resolve Material::SetInt & Material::SetColor if not yet cached
     if (!u_Material_SetInt) {
         Il2CppMethodInfo* mSetInt = FindMethod("UnityEngine", "Material", "SetInt", 2);
         if (mSetInt) u_Material_SetInt = (Material_SetInt_t)mSetInt->methodPointer;
@@ -191,11 +189,8 @@ void ApplyChamsToRenderer(void* rendererInstance) {
     }
 
     if (u_Material_SetInt) {
-        // _ZTest = 8 (CompareFunction.Always -> Render through all walls)
         u_Material_SetInt(mat, fn_string_new("_ZTest"), 8);
-        // _ZWrite = 0
         u_Material_SetInt(mat, fn_string_new("_ZWrite"), 0);
-        // _Cull = 0 (Off)
         u_Material_SetInt(mat, fn_string_new("_Cull"), 0);
     }
 
@@ -208,7 +203,6 @@ void ApplyChamsToRenderer(void* rendererInstance) {
 void ApplyWeaponNoTapPatches() {
     uintptr_t base = GetFrameworkBase("UnityFramework");
 
-    // 1. Try symbol-based IL2CPP method lookup first (survives game updates)
     const char* weaponClasses[] = { "WeaponController", "GunController", "Firearm", "BaseWeapon", "PlayerWeapon" };
     const char* recoilMethods[] = { "GetRecoil", "get_Recoil", "CalculateRecoil", "GetVerticalRecoil" };
     const char* spreadMethods[] = { "GetSpread", "get_Spread", "CalculateSpread", "GetInaccuracy", "GetBloom" };
@@ -235,7 +229,6 @@ void ApplyWeaponNoTapPatches() {
         }
     }
 
-    // 2. Apply direct RVA offset patches from Offsets namespace
     if (g_State.zeroRecoil) {
         PatchMemory(base + Offsets::Weapon_GetRecoil, kPatchRetFloatZero, sizeof(kPatchRetFloatZero));
         PatchMemory(base + Offsets::Weapon_ApplyKickback, kPatchRetVoid, sizeof(kPatchRetVoid));
@@ -265,7 +258,6 @@ void ApplyWeaponNoTapPatches() {
     self.view.backgroundColor = [UIColor clearColor];
     self.view.userInteractionEnabled = YES;
 
-    // 1. Setup 60FPS ESP Canvas Layer
     self.espLayer = [CAShapeLayer layer];
     self.espLayer.frame = self.view.bounds;
     self.espLayer.strokeColor = [UIColor colorWithRed:1.0 green:0.15 blue:0.25 alpha:0.95].CGColor;
@@ -273,7 +265,6 @@ void ApplyWeaponNoTapPatches() {
     self.espLayer.lineWidth = 1.5f;
     [self.view.layer addSublayer:self.espLayer];
 
-    // 2. Setup Floating Draggable Trigger Button
     self.floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
     self.floatingButton.frame = CGRectMake(60, 120, 52, 52);
     self.floatingButton.backgroundColor = [UIColor colorWithRed:0.12 green:0.08 blue:0.22 alpha:0.92];
@@ -289,7 +280,6 @@ void ApplyWeaponNoTapPatches() {
     [self.floatingButton addGestureRecognizer:pan];
     [self.view addSubview:self.floatingButton];
 
-    // 3. Setup Mod Menu Panel
     self.menuPanel = [[UIView alloc] initWithFrame:CGRectMake(80, 80, 260, 230)];
     self.menuPanel.backgroundColor = [UIColor colorWithRed:0.07 green:0.07 blue:0.12 alpha:0.95];
     self.menuPanel.layer.cornerRadius = 14;
@@ -365,7 +355,6 @@ void ApplyWeaponNoTapPatches() {
     UIBezierPath* path = [UIBezierPath bezierPath];
     CGSize screen = [UIScreen mainScreen].bounds.size;
 
-    // Crosshair center lock indicator
     CGFloat cx = screen.width * 0.5f;
     CGFloat cy = screen.height * 0.5f;
     [path moveToPoint:CGPointMake(cx - 8, cy)];
@@ -373,7 +362,6 @@ void ApplyWeaponNoTapPatches() {
     [path moveToPoint:CGPointMake(cx, cy - 8)];
     [path addLineToPoint:CGPointMake(cx, cy + 8)];
 
-    // Iterate active SkinnedMeshRenderers if UnityEngine.Object::FindObjectsOfType is resolved
     static Il2CppMethodInfo* findObjs = nullptr;
     if (!findObjs) {
         findObjs = FindMethod("UnityEngine", "Renderer", "get_bounds", 0);
@@ -384,7 +372,6 @@ void ApplyWeaponNoTapPatches() {
 
 @end
 
-// Custom Pass-Through Window so Game Touch Controls Never Block
 @interface CFPassthroughWindow : UIWindow
 @end
 
@@ -392,7 +379,7 @@ void ApplyWeaponNoTapPatches() {
 - (UIView*)hitTest:(CGPoint)point withEvent:(UIEvent*)event {
     UIView* hitView = [super hitTest:point withEvent:event];
     if (hitView == self || hitView == self.rootViewController.view) {
-        return nil; // Pass touches straight through to Unity view
+        return nil;
     }
     return hitView;
 }
