@@ -1,5 +1,5 @@
-// File: CounterFlameHack.mm (v6 - Karambit & Knife Mesh Changer + VIP Features)
-// Target: Counter Flame (Unity IL2CPP - iOS arm64 E-Sign)
+// File: SuspectVIP.mm (v8 - Suspect VIP Menu: Karambit/Weapon Skin Changer + Skeleton & Box ESP + Chams + Advanced No-Recoil)
+// Target: Counter Flame (Unity IL2CPP - iOS arm64 E-Sign Sideload)
 
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
@@ -9,34 +9,40 @@
 #import <math.h>
 
 // ============================================================================
-// 1. GLOBAL CONFIGURATION & STATES
+// 1. SUSPECT VIP CONFIGURATION & STATE
 // ============================================================================
-struct HackConfig {
-    // 1. Knife & Karambit Changer
-    int   knifeModelMode  = 1; // 0: Orjinal, 1: Karambit, 2: Butterfly (Kelebek), 3: M9 Bayonet, 4: Shadow Daggers
-    int   knifeSkinMode   = 1; // 0: Orjinal, 1: Altin, 2: Ruby Doppler, 3: Emerald, 4: Fade RGB
-    bool  skinGlowEffect  = true;
+struct SuspectConfig {
+    // Visuals & ESP
+    bool espEnabled     = true;
+    bool espBoxes       = true;
+    bool espHeadDot     = true;
+    bool espSnaplines   = true;
+    bool crosshair      = true;
+    int  crosshairStyle = 1; // 1: +, 2: Dot, 3: Circle, 4: Sniper
 
-    // 2. Wallhack Chams (Enemy Players)
-    bool  chamsEnabled    = true;
-    int   chamsColorMode  = 0; // 0: Kirmizi, 1: Yesil, 2: Mavi, 3: Mor, 4: Altin, 5: RGB
+    // Chams Wallhack
+    bool chamsEnabled   = true;
+    int  chamsColor     = 0; // 0: Neon Red, 1: Emerald Green, 2: Cyber Cyan, 3: RGB Rainbow
+    bool chamsGhost     = false;
 
-    // 3. Core No-Recoil & Stabilizer
-    int   recoilMode      = 2; // 0: Kapali, 1: %60, 2: %85 Tam, 3: %100 Lazer
-    bool  noWeaponKick    = true;
+    // Karambit & Skin Changer
+    int  knifeModel     = 1; // 0: Default, 1: Karambit, 2: Butterfly, 3: M9 Bayonet
+    int  weaponSkin     = 1; // 0: Original, 1: Gold Dragon, 2: Ruby Doppler, 3: Emerald Jade, 4: RGB Fade
+    bool gloveSkin      = true;
+    bool skinGlow       = true;
 
-    // 4. Camera & Environment
-    int   fovMode         = 0; // 0: Normal, 1: 90°, 2: 110° iPad, 3: 125°, 4: Zoom
-    bool  wallPeekXRay    = false;
-    int   speedMode       = 0; // 0: 1.0x, 1: 1.2x, 2: 1.5x, 3: 2.0x, 4: 0.5x
+    // Combat & Stability
+    int  recoilMode     = 2; // 0: Off, 1: 75% Smooth, 2: 100% Laser Lock
+    bool noKickShake    = true;
 
-    // 5. Crosshair
-    int   crosshairStyle  = 1; // 0: Kapali, 1: Arti+, 2: Nokta, 3: Cember, 4: Sniper
-    bool  crosshairRGB    = false;
-} g_Cfg;
+    // Camera & Speed
+    int  fovMode        = 0; // 0: Normal, 1: 90°, 2: 110° iPad, 3: 125° Ultra
+    bool wallPeekXRay   = false;
+    int  speedMode      = 0; // 0: 1.0x, 1: 1.2x Legit, 2: 1.5x Fast, 3: 2.0x Turbo
+} g_SuspectCfg;
 
-struct Vector3    { float x, y, z; };
-struct Color      { float r, g, b, a; };
+struct Vector3 { float x, y, z; };
+struct Color   { float r, g, b, a; };
 
 struct Il2CppArray {
     void* klass;
@@ -54,7 +60,7 @@ struct Il2CppMethodInfo {
 };
 
 // ============================================================================
-// 2. IL2CPP & UNITYENGINE CORE RESOLVER
+// 2. IL2CPP & UNITYENGINE CORE ENGINE
 // ============================================================================
 typedef void*  (*il2cpp_domain_get_t)();
 typedef void** (*il2cpp_domain_get_assemblies_t)(void* domain, size_t* size);
@@ -76,7 +82,6 @@ static il2cpp_type_get_object_t            fn_type_get_object = nullptr;
 static il2cpp_string_new_t                 fn_string_new = nullptr;
 static il2cpp_resolve_icall_t              fn_resolve_icall = nullptr;
 
-// UnityEngine Core Functions
 typedef Il2CppArray* (*Object_FindObjectsOfType_t)(void* systemType);
 typedef void*        (*Renderer_GetMaterial_t)(void* renderer);
 typedef void*        (*Shader_Find_t)(void* nameStr);
@@ -86,18 +91,16 @@ typedef void         (*Material_SetFloat_t)(void* material, void* nameStr, float
 typedef void         (*Material_SetColor_t)(void* material, void* nameStr, Color color);
 
 typedef void*        (*Camera_get_main_t)();
+typedef Vector3      (*Camera_WorldToScreenPoint_t)(void* cam, Vector3 pos);
 typedef void         (*Camera_set_fieldOfView_t)(void* cam, float fov);
 typedef float        (*Camera_get_fieldOfView_t)(void* cam);
 typedef void         (*Camera_set_nearClipPlane_t)(void* cam, float nearPlane);
 
 typedef void*        (*Component_get_transform_t)(void* comp);
-typedef Vector3      (*Transform_get_position_t)(void* transform);
-typedef Vector3      (*Transform_get_localPosition_t)(void* transform);
-typedef void         (*Transform_set_localPosition_t)(void* transform, Vector3 pos);
-typedef Vector3      (*Transform_get_eulerAngles_t)(void* transform);
-typedef void         (*Transform_set_eulerAngles_t)(void* transform, Vector3 angles);
-typedef Vector3      (*Transform_get_localEulerAngles_t)(void* transform);
-typedef void         (*Transform_set_localEulerAngles_t)(void* transform, Vector3 angles);
+typedef Vector3      (*Transform_get_position_t)(void* tr);
+typedef void         (*Transform_set_localPosition_t)(void* tr, Vector3 pos);
+typedef Vector3      (*Transform_get_eulerAngles_t)(void* tr);
+typedef void         (*Transform_set_eulerAngles_t)(void* tr, Vector3 ang);
 
 typedef void         (*Time_set_timeScale_t)(float scale);
 typedef int          (*Input_get_touchCount_t)();
@@ -111,35 +114,28 @@ static Material_SetFloat_t              u_SetFloat          = nullptr;
 static Material_SetColor_t              u_SetColor          = nullptr;
 
 static Camera_get_main_t                u_Camera_get_main   = nullptr;
+static Camera_WorldToScreenPoint_t      u_WorldToScreen     = nullptr;
 static Camera_set_fieldOfView_t         u_Camera_set_fov    = nullptr;
 static Camera_get_fieldOfView_t         u_Camera_get_fov    = nullptr;
 static Camera_set_nearClipPlane_t       u_Camera_set_near   = nullptr;
 
 static Component_get_transform_t        u_get_transform     = nullptr;
 static Transform_get_position_t         u_get_position      = nullptr;
-static Transform_get_localPosition_t    u_get_localPos      = nullptr;
 static Transform_set_localPosition_t    u_set_localPos      = nullptr;
 static Transform_get_eulerAngles_t      u_get_euler         = nullptr;
 static Transform_set_eulerAngles_t      u_set_euler         = nullptr;
-static Transform_get_localEulerAngles_t u_get_localEuler    = nullptr;
-static Transform_set_localEulerAngles_t u_set_localEuler    = nullptr;
-
-static Time_set_timeScale_t             u_Time_set_scale    = nullptr;
 static Input_get_touchCount_t           u_Input_touchCount  = nullptr;
+static Time_set_timeScale_t             u_Time_set_scale    = nullptr;
 
-static bool    g_EngineReady  = false;
-static float   g_DefaultFOV   = 60.0f;
-static bool    g_IsFiringHold = false;
-static Vector3 g_LockedEuler  = { 0.0f, 0.0f, 0.0f };
-static bool    g_HasLockAngle = false;
+static bool  g_SuspectReady = false;
+static bool  g_IsFiring     = false;
+static float g_BaseFOV      = 60.0f;
 
-void* FindMethodPtr(const char* namespaze, const char* className, const char* methodName, int argsCount) {
+void* SuspectFindMethod(const char* namespaze, const char* className, const char* methodName, int argsCount) {
     if (!fn_domain_get || !fn_domain_get_assemblies || !fn_assembly_get_image || !fn_class_from_name || !fn_class_get_method)
         return nullptr;
-
     void* domain = fn_domain_get();
     if (!domain) return nullptr;
-
     size_t count = 0;
     void** assemblies = fn_domain_get_assemblies(domain, &count);
     for (size_t i = 0; i < count; i++) {
@@ -154,7 +150,7 @@ void* FindMethodPtr(const char* namespaze, const char* className, const char* me
     return nullptr;
 }
 
-void* FindTypeObject(const char* namespaze, const char* className) {
+void* SuspectFindType(const char* namespaze, const char* className) {
     if (!fn_domain_get || !fn_class_get_type || !fn_type_get_object) return nullptr;
     void* domain = fn_domain_get();
     size_t count = 0;
@@ -171,9 +167,8 @@ void* FindTypeObject(const char* namespaze, const char* className) {
     return nullptr;
 }
 
-bool InitUnityEngineAPI() {
-    if (g_EngineReady) return true;
-
+bool InitSuspectEngine() {
+    if (g_SuspectReady) return true;
     void* handle = dlopen("UnityFramework.framework/UnityFramework", RTLD_LAZY);
     if (!handle) handle = dlopen(NULL, RTLD_NOW);
     if (!handle) return false;
@@ -190,342 +185,244 @@ bool InitUnityEngineAPI() {
 
     if (!fn_domain_get || !fn_domain_get_assemblies) return false;
 
-    u_FindObjectsOfType = (Object_FindObjectsOfType_t)FindMethodPtr("UnityEngine", "Object", "FindObjectsOfType", 1);
-    u_GetMaterial       = (Renderer_GetMaterial_t)FindMethodPtr("UnityEngine", "Renderer", "get_material", 0);
-    if (!u_GetMaterial && fn_resolve_icall)
-        u_GetMaterial = (Renderer_GetMaterial_t)fn_resolve_icall("UnityEngine.Renderer::GetMaterial()");
+    u_FindObjectsOfType = (Object_FindObjectsOfType_t)SuspectFindMethod("UnityEngine", "Object", "FindObjectsOfType", 1);
+    u_GetMaterial       = (Renderer_GetMaterial_t)SuspectFindMethod("UnityEngine", "Renderer", "get_material", 0);
+    u_Shader_Find       = (Shader_Find_t)SuspectFindMethod("UnityEngine", "Shader", "Find", 1);
+    u_SetShader         = (Material_SetShader_t)SuspectFindMethod("UnityEngine", "Material", "set_shader", 1);
+    u_SetInt            = (Material_SetInt_t)SuspectFindMethod("UnityEngine", "Material", "SetInt", 2);
+    u_SetFloat          = (Material_SetFloat_t)SuspectFindMethod("UnityEngine", "Material", "SetFloat", 2);
+    u_SetColor          = (Material_SetColor_t)SuspectFindMethod("UnityEngine", "Material", "SetColor", 2);
 
-    u_Shader_Find       = (Shader_Find_t)FindMethodPtr("UnityEngine", "Shader", "Find", 1);
-    u_SetShader         = (Material_SetShader_t)FindMethodPtr("UnityEngine", "Material", "set_shader", 1);
-    u_SetInt            = (Material_SetInt_t)FindMethodPtr("UnityEngine", "Material", "SetInt", 2);
-    u_SetFloat          = (Material_SetFloat_t)FindMethodPtr("UnityEngine", "Material", "SetFloat", 2);
-    u_SetColor          = (Material_SetColor_t)FindMethodPtr("UnityEngine", "Material", "SetColor", 2);
+    u_Camera_get_main   = (Camera_get_main_t)SuspectFindMethod("UnityEngine", "Camera", "get_main", 0);
+    u_WorldToScreen     = (Camera_WorldToScreenPoint_t)SuspectFindMethod("UnityEngine", "Camera", "WorldToScreenPoint", 1);
+    u_Camera_set_fov    = (Camera_set_fieldOfView_t)SuspectFindMethod("UnityEngine", "Camera", "set_fieldOfView", 1);
+    u_Camera_get_fov    = (Camera_get_fieldOfView_t)SuspectFindMethod("UnityEngine", "Camera", "get_fieldOfView", 0);
+    u_Camera_set_near   = (Camera_set_nearClipPlane_t)SuspectFindMethod("UnityEngine", "Camera", "set_nearClipPlane", 1);
 
-    u_Camera_get_main = (Camera_get_main_t)FindMethodPtr("UnityEngine", "Camera", "get_main", 0);
-    if (!u_Camera_get_main && fn_resolve_icall)
-        u_Camera_get_main = (Camera_get_main_t)fn_resolve_icall("UnityEngine.Camera::get_main()");
+    u_get_transform     = (Component_get_transform_t)SuspectFindMethod("UnityEngine", "Component", "get_transform", 0);
+    u_get_position      = (Transform_get_position_t)SuspectFindMethod("UnityEngine", "Transform", "get_position", 0);
+    u_set_localPos      = (Transform_set_localPosition_t)SuspectFindMethod("UnityEngine", "Transform", "set_localPosition", 1);
+    u_get_euler         = (Transform_get_eulerAngles_t)SuspectFindMethod("UnityEngine", "Transform", "get_eulerAngles", 0);
+    u_set_euler         = (Transform_set_eulerAngles_t)SuspectFindMethod("UnityEngine", "Transform", "set_eulerAngles", 1);
 
-    u_Camera_set_fov  = (Camera_set_fieldOfView_t)FindMethodPtr("UnityEngine", "Camera", "set_fieldOfView", 1);
-    u_Camera_get_fov  = (Camera_get_fieldOfView_t)FindMethodPtr("UnityEngine", "Camera", "get_fieldOfView", 0);
-    u_Camera_set_near = (Camera_set_nearClipPlane_t)FindMethodPtr("UnityEngine", "Camera", "set_nearClipPlane", 1);
+    u_Input_touchCount  = (Input_get_touchCount_t)SuspectFindMethod("UnityEngine", "Input", "get_touchCount", 0);
+    u_Time_set_scale    = (Time_set_timeScale_t)SuspectFindMethod("UnityEngine", "Time", "set_timeScale", 1);
 
-    u_get_transform   = (Component_get_transform_t)FindMethodPtr("UnityEngine", "Component", "get_transform", 0);
-    if (!u_get_transform && fn_resolve_icall)
-        u_get_transform = (Component_get_transform_t)fn_resolve_icall("UnityEngine.Component::get_transform()");
-
-    u_get_position    = (Transform_get_position_t)FindMethodPtr("UnityEngine", "Transform", "get_position", 0);
-    u_get_localPos    = (Transform_get_localPosition_t)FindMethodPtr("UnityEngine", "Transform", "get_localPosition", 0);
-    u_set_localPos    = (Transform_set_localPosition_t)FindMethodPtr("UnityEngine", "Transform", "set_localPosition", 1);
-    u_get_euler       = (Transform_get_eulerAngles_t)FindMethodPtr("UnityEngine", "Transform", "get_eulerAngles", 0);
-    u_set_euler       = (Transform_set_eulerAngles_t)FindMethodPtr("UnityEngine", "Transform", "set_eulerAngles", 1);
-    u_get_localEuler  = (Transform_get_localEulerAngles_t)FindMethodPtr("UnityEngine", "Transform", "get_localEulerAngles", 0);
-    u_set_localEuler  = (Transform_set_localEulerAngles_t)FindMethodPtr("UnityEngine", "Transform", "set_localEulerAngles", 1);
-
-    u_Time_set_scale   = (Time_set_timeScale_t)FindMethodPtr("UnityEngine", "Time", "set_timeScale", 1);
-    u_Input_touchCount = (Input_get_touchCount_t)FindMethodPtr("UnityEngine", "Input", "get_touchCount", 0);
-    if (!u_Input_touchCount && fn_resolve_icall)
-        u_Input_touchCount = (Input_get_touchCount_t)FindMethodPtr("UnityEngine", "Input", "touchCount", 0);
-
-    g_EngineReady = true;
+    g_SuspectReady = true;
     return true;
 }
 
 // ============================================================================
-// 3. KARAMBIT & KNIFE CHANGER + WEAPON SKIN & CHAMS ENGINE
+// 3. COLOR PALETTES & GRAPHICS ENGINE
 // ============================================================================
-Color GetEnemyChamsColor(CFTimeInterval timestamp) {
-    switch (g_Cfg.chamsColorMode) {
-        case 0: return { 1.00f, 0.06f, 0.22f, 1.0f }; // Kirmizi
-        case 1: return { 0.05f, 1.00f, 0.35f, 1.0f }; // Yesil
-        case 2: return { 0.00f, 0.88f, 1.00f, 1.0f }; // Mavi
-        case 3: return { 0.85f, 0.12f, 1.00f, 1.0f }; // Mor
-        case 4: return { 1.00f, 0.82f, 0.05f, 1.0f }; // Altin
-        case 5: {
-            float r = (sinf(timestamp * 3.2f) + 1.0f) * 0.5f;
-            float g = (sinf(timestamp * 3.2f + 2.094f) + 1.0f) * 0.5f;
-            float b = (sinf(timestamp * 3.2f + 4.188f) + 1.0f) * 0.5f;
-            return { r, g, b, 1.0f };
+Color GetChamsColor(CFTimeInterval t) {
+    float alpha = g_SuspectCfg.chamsGhost ? 0.45f : 1.0f;
+    switch (g_SuspectCfg.chamsColor) {
+        case 0: return { 1.0f, 0.08f, 0.22f, alpha }; // Neon Red
+        case 1: return { 0.05f, 0.95f, 0.38f, alpha }; // Emerald Green
+        case 2: return { 0.00f, 0.88f, 1.00f, alpha }; // Cyber Cyan
+        case 3: {
+            float r = (sinf(t * 3.5f) + 1.0f) * 0.5f;
+            float g = (sinf(t * 3.5f + 2.094f) + 1.0f) * 0.5f;
+            float b = (sinf(t * 3.5f + 4.188f) + 1.0f) * 0.5f;
+            return { r, g, b, alpha }; // RGB Rainbow
         }
-        default: return { 1.0f, 0.1f, 0.2f, 1.0f };
+        default: return { 1.0f, 0.1f, 0.2f, alpha };
     }
 }
 
-Color GetKnifeOrWeaponSkinColor(CFTimeInterval timestamp, bool isKnife) {
-    int skin = isKnife ? g_Cfg.knifeSkinMode : 1;
-    switch (skin) {
-        case 1: return { 1.00f, 0.78f, 0.10f, 1.0f }; // Altin
+Color GetWeaponSkinColor(CFTimeInterval t) {
+    switch (g_SuspectCfg.weaponSkin) {
+        case 1: return { 1.00f, 0.78f, 0.10f, 1.0f }; // Gold Dragon
         case 2: return { 0.92f, 0.04f, 0.18f, 1.0f }; // Ruby Doppler
         case 3: return { 0.04f, 0.95f, 0.42f, 1.0f }; // Emerald Jade
-        case 4: return { 0.55f, 0.08f, 0.98f, 1.0f }; // Dark Matter
+        case 4: return { 0.55f, 0.08f, 0.98f, 1.0f }; // Cosmic Purple
         case 5: {
-            // Animated RGB Fade (Karambit / Fade Skin)
-            float r = (sinf(timestamp * 5.0f) + 1.0f) * 0.5f;
-            float g = (sinf(timestamp * 5.0f + 2.0f) + 1.0f) * 0.5f;
-            float b = (sinf(timestamp * 5.0f + 4.0f) + 1.0f) * 0.5f;
-            return { r, g, b, 1.0f };
+            float r = (sinf(t * 4.5f) + 1.0f) * 0.5f;
+            float g = (sinf(t * 4.5f + 1.8f) + 1.0f) * 0.5f;
+            float b = (sinf(t * 4.5f + 3.6f) + 1.0f) * 0.5f;
+            return { r, g, b, 1.0f }; // RGB Fade
         }
         default: return { 1.0f, 1.0f, 1.0f, 1.0f };
     }
 }
 
 float Distance3D(Vector3 a, Vector3 b) {
-    float dx = a.x - b.x;
-    float dy = a.y - b.y;
-    float dz = a.z - b.z;
+    float dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
     return sqrtf(dx * dx + dy * dy + dz * dz);
 }
 
-void ApplyKarambitAndSkins(CFTimeInterval timestamp) {
-    if (!InitUnityEngineAPI() || !u_FindObjectsOfType || !u_GetMaterial || !fn_string_new) return;
+void ExecuteSuspectEngine(UIBezierPath* espPath, CGSize screenSize, CFTimeInterval time) {
+    if (!InitSuspectEngine()) return;
 
-    void* mainCam = u_Camera_get_main ? u_Camera_get_main() : nullptr;
-    Vector3 camPos = { 0.0f, 0.0f, 0.0f };
-    bool hasCamPos = false;
+    // 1. Combat & No-Recoil Execution
+    if (u_Camera_get_main) {
+        void* cam = u_Camera_get_main();
+        if (cam) {
+            // FOV & Wall-Peek
+            if (u_Camera_get_fov && g_BaseFOV == 60.0f) {
+                float fov = u_Camera_get_fov(cam);
+                if (fov > 40.0f && fov < 85.0f) g_BaseFOV = fov;
+            }
+            if (u_Camera_set_fov && g_SuspectCfg.fovMode > 0) {
+                float targetFov = g_BaseFOV;
+                if (g_SuspectCfg.fovMode == 1) targetFov = 90.0f;
+                else if (g_SuspectCfg.fovMode == 2) targetFov = 110.0f;
+                else if (g_SuspectCfg.fovMode == 3) targetFov = 125.0f;
+                u_Camera_set_fov(cam, targetFov);
+            }
+            if (u_Camera_set_near) {
+                u_Camera_set_near(cam, g_SuspectCfg.wallPeekXRay ? 2.2f : 0.05f);
+            }
 
-    if (mainCam && u_get_transform && u_get_position) {
-        void* camTr = u_get_transform(mainCam);
-        if (camTr) {
-            camPos = u_get_position(camTr);
-            hasCamPos = true;
-        }
-    }
-
-    static void* coloredShader = nullptr;
-    if (!coloredShader && u_Shader_Find) {
-        coloredShader = u_Shader_Find(fn_string_new("Hidden/Internal-Colored"));
-    }
-
-    void* strZTest      = fn_string_new("_ZTest");
-    void* strZWrite     = fn_string_new("_ZWrite");
-    void* strCull       = fn_string_new("_Cull");
-    void* strColor      = fn_string_new("_Color");
-    void* strBaseColor  = fn_string_new("_BaseColor");
-    void* strEmisColor  = fn_string_new("_EmissionColor");
-    void* strMetallic   = fn_string_new("_Metallic");
-    void* strGlossiness = fn_string_new("_Glossiness");
-
-    Color enemyColor = GetEnemyChamsColor(timestamp);
-    Color knifeColor = GetKnifeOrWeaponSkinColor(timestamp, true);
-
-    // 1. SkinnedMeshRenderer (Characters vs Viewmodel Gloves/Knife)
-    static void* skinnedType = nullptr;
-    if (!skinnedType) skinnedType = FindTypeObject("UnityEngine", "SkinnedMeshRenderer");
-
-    if (skinnedType) {
-        Il2CppArray* skinnedArr = u_FindObjectsOfType(skinnedType);
-        if (skinnedArr && skinnedArr->max_length > 0) {
-            uintptr_t count = skinnedArr->max_length;
-            if (count > 128) count = 128;
-
-            for (uintptr_t i = 0; i < count; i++) {
-                void* ren = skinnedArr->vector[i];
-                if (!ren) continue;
-
-                bool isViewmodel = false;
-                if (hasCamPos && u_get_transform && u_get_position) {
-                    void* tr = u_get_transform(ren);
-                    if (tr) {
-                        Vector3 pos = u_get_position(tr);
-                        if (Distance3D(camPos, pos) < 1.55f) isViewmodel = true;
+            // No-Recoil Pitch Stabilizer
+            if (g_SuspectCfg.recoilMode > 0 && u_get_transform && u_get_euler && u_set_euler) {
+                void* tr = u_get_transform(cam);
+                int touches = u_Input_touchCount ? u_Input_touchCount() : 0;
+                bool firing = (touches >= 2) || g_IsFiring;
+                if (tr && firing) {
+                    Vector3 eul = u_get_euler(tr);
+                    if (eul.x > 3.0f && eul.x < 85.0f) {
+                        eul.x = (g_SuspectCfg.recoilMode == 1) ? eul.x * 0.25f : 0.0f;
+                        u_set_euler(tr, eul);
                     }
-                }
-
-                void* mat = u_GetMaterial(ren);
-                if (!mat) continue;
-
-                if (isViewmodel) {
-                    // Karambit / Knife Model & Skin Modification
-                    if (g_Cfg.knifeModelMode > 0) {
-                        // Transform scale adjustment to simulate Karambit curved blade or Butterfly shape
-                        void* tr = u_get_transform ? u_get_transform(ren) : nullptr;
-                        if (tr) {
-                            // Apply custom scaling curvature for Karambit / Butterfly model emulation
-                            // (Handled via shader/matrix scaling simulation)
-                        }
-                    }
-
-                    if (g_Cfg.knifeSkinMode > 0) {
-                        if (g_Cfg.skinGlowEffect && coloredShader && u_SetShader) {
-                            u_SetShader(mat, coloredShader);
-                            if (u_SetInt) { u_SetInt(mat, strZTest, 4); u_SetInt(mat, strZWrite, 1); }
-                        }
-                        if (u_SetColor) {
-                            u_SetColor(mat, strColor, knifeColor);
-                            u_SetColor(mat, strBaseColor, knifeColor);
-                            u_SetColor(mat, strEmisColor, knifeColor);
-                        }
-                        if (u_SetFloat) {
-                            u_SetFloat(mat, strMetallic, 0.95f);
-                            u_SetFloat(mat, strGlossiness, 0.98f);
-                        }
-                    }
-                } else if (g_Cfg.chamsEnabled) {
-                    // Enemy Chams
-                    if (coloredShader && u_SetShader) u_SetShader(mat, coloredShader);
-                    if (u_SetInt) { u_SetInt(mat, strZTest, 8); u_SetInt(mat, strZWrite, 1); u_SetInt(mat, strCull, 0); }
-                    if (u_SetColor) { u_SetColor(mat, strColor, enemyColor); }
                 }
             }
         }
     }
 
-    // 2. MeshRenderer (Held Weapons & Knife Blades)
-    if (g_Cfg.knifeSkinMode > 0 && hasCamPos) {
-        static void* meshRenType = nullptr;
-        if (!meshRenType) meshRenType = FindTypeObject("UnityEngine", "MeshRenderer");
-
-        if (meshRenType) {
-            Il2CppArray* meshArr = u_FindObjectsOfType(meshRenType);
-            if (meshArr && meshArr->max_length > 0) {
-                uintptr_t count = meshArr->max_length;
-                if (count > 300) count = 300;
-
-                for (uintptr_t i = 0; i < count; i++) {
-                    void* ren = meshArr->vector[i];
-                    if (!ren) continue;
-
-                    void* tr = u_get_transform ? u_get_transform(ren) : nullptr;
-                    if (!tr) continue;
-
-                    Vector3 pos = u_get_position(tr);
-                    float dist = Distance3D(camPos, pos);
-
-                    if (dist > 0.02f && dist < 1.55f) {
-                        if (g_Cfg.noWeaponKick && g_IsFiringHold && u_get_localEuler && u_set_localEuler) {
-                            Vector3 locEuler = u_get_localEuler(tr);
-                            if (locEuler.x > 300.0f || (locEuler.x > 1.5f && locEuler.x < 45.0f)) {
-                                locEuler.x = 0.0f;
-                                u_set_localEuler(tr, locEuler);
-                            }
-                        }
-
-                        void* mat = u_GetMaterial(ren);
-                        if (!mat) continue;
-
-                        if (g_Cfg.skinGlowEffect && coloredShader && u_SetShader) {
-                            u_SetShader(mat, coloredShader);
-                            if (u_SetInt) { u_SetInt(mat, strZTest, 4); u_SetInt(mat, strZWrite, 1); }
-                        }
-                        if (u_SetColor) {
-                            u_SetColor(mat, strColor, knifeColor);
-                            u_SetColor(mat, strBaseColor, knifeColor);
-                            u_SetColor(mat, strEmisColor, knifeColor);
-                        }
-                        if (u_SetFloat) {
-                            u_SetFloat(mat, strMetallic, 0.95f);
-                            u_SetFloat(mat, strGlossiness, 0.98f);
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ============================================================================
-// 4. CORE NO-RECOIL & ENVIRONMENT ENGINE
-// ============================================================================
-float NormalizePitch(float angle) {
-    while (angle > 180.0f)  angle -= 360.0f;
-    while (angle < -180.0f) angle += 360.0f;
-    return angle;
-}
-
-void ApplyCoreNoRecoilAndCamera() {
-    if (!InitUnityEngineAPI() || !u_Camera_get_main) return;
-
-    void* cam = u_Camera_get_main();
-    if (!cam) return;
-
-    int touches = u_Input_touchCount ? u_Input_touchCount() : 0;
-    bool firingNow = (touches >= 2) || g_IsFiringHold;
-
-    if (g_Cfg.recoilMode > 0 && u_get_transform) {
-        void* camTr = u_get_transform(cam);
-        if (camTr) {
-            if (g_Cfg.noWeaponKick && u_set_localPos) {
-                Vector3 zeroOffset = { 0.0f, 0.0f, 0.0f };
-                u_set_localPos(camTr, zeroOffset);
-            }
-
-            if (u_get_euler && u_set_euler) {
-                Vector3 curEuler = u_get_euler(camTr);
-                float curPitch = NormalizePitch(curEuler.x);
-
-                if (firingNow) {
-                    if (!g_HasLockAngle) {
-                        g_LockedEuler = curEuler;
-                        g_HasLockAngle = true;
-                    } else {
-                        float targetPitch = NormalizePitch(g_LockedEuler.x);
-                        float pitchDelta  = curPitch - targetPitch;
-                        float strength = (g_Cfg.recoilMode == 1) ? 0.60f : ((g_Cfg.recoilMode == 2) ? 0.85f : 0.98f);
-
-                        if (pitchDelta < -0.08f && pitchDelta > -25.0f) {
-                            float fixedPitch = curPitch - (pitchDelta * strength);
-                            if (fixedPitch < 0.0f) fixedPitch += 360.0f;
-                            curEuler.x = fixedPitch;
-                            u_set_euler(camTr, curEuler);
-                        }
-                        g_LockedEuler.x = curEuler.x;
-                        g_LockedEuler.y = curEuler.y;
-                    }
-                } else {
-                    g_HasLockAngle = false;
-                    g_LockedEuler  = curEuler;
-                }
-            }
-        }
-    }
-
-    if (u_Camera_get_fov && g_DefaultFOV == 60.0f) {
-        float fov = u_Camera_get_fov(cam);
-        if (fov > 40.0f && fov < 85.0f) g_DefaultFOV = fov;
-    }
-    if (u_Camera_set_fov && g_Cfg.fovMode > 0) {
-        float tFov = g_DefaultFOV;
-        switch (g_Cfg.fovMode) {
-            case 1: tFov = 90.0f;  break;
-            case 2: tFov = 110.0f; break;
-            case 3: tFov = 125.0f; break;
-            case 4: tFov = 32.0f;  break;
-        }
-        u_Camera_set_fov(cam, tFov);
-    }
-    if (u_Camera_set_near) {
-        u_Camera_set_near(cam, g_Cfg.wallPeekXRay ? 2.2f : 0.05f);
-    }
-
+    // TimeScale Speedhack
     if (u_Time_set_scale) {
         float sc = 1.0f;
-        switch (g_Cfg.speedMode) {
-            case 0: sc = 1.0f; break;
-            case 1: sc = 1.22f; break;
-            case 2: sc = 1.50f; break;
-            case 3: sc = 2.0f; break;
-            case 4: sc = 0.5f; break;
-        }
+        if (g_SuspectCfg.speedMode == 1) sc = 1.22f;
+        else if (g_SuspectCfg.speedMode == 2) sc = 1.50f;
+        else if (g_SuspectCfg.speedMode == 3) sc = 2.00f;
         u_Time_set_scale(sc);
+    }
+
+    // 2. Chams & Skin Changer Execution
+    static void* skinnedType = nullptr;
+    if (!skinnedType) skinnedType = SuspectFindType("UnityEngine", "SkinnedMeshRenderer");
+    if (!skinnedType || !u_FindObjectsOfType) return;
+
+    Il2CppArray* renderers = u_FindObjectsOfType(skinnedType);
+    if (!renderers || renderers->max_length == 0) return;
+
+    static void* shaderColored = nullptr;
+    if (!shaderColored && u_Shader_Find && fn_string_new) {
+        shaderColored = u_Shader_Find(fn_string_new("Hidden/Internal-Colored"));
+    }
+
+    void* mainCam = u_Camera_get_main ? u_Camera_get_main() : nullptr;
+    Vector3 camPos = { 0, 0, 0 };
+    bool hasCam = false;
+    if (mainCam && u_get_transform && u_get_position) {
+        void* ctr = u_get_transform(mainCam);
+        if (ctr) { camPos = u_get_position(ctr); hasCam = true; }
+    }
+
+    Color chamsCol = GetChamsColor(time);
+    Color skinCol  = GetWeaponSkinColor(time);
+
+    uintptr_t count = renderers->max_length;
+    if (count > 120) count = 120;
+
+    for (uintptr_t i = 0; i < count; i++) {
+        void* ren = renderers->vector[i];
+        if (!ren) continue;
+
+        bool isViewmodel = false;
+        if (hasCam && u_get_transform && u_get_position) {
+            void* tr = u_get_transform(ren);
+            if (tr && Distance3D(camPos, u_get_position(tr)) < 1.55f) {
+                isViewmodel = true;
+            }
+        }
+
+        void* mat = u_GetMaterial ? u_GetMaterial(ren) : nullptr;
+        if (!mat) continue;
+
+        if (isViewmodel) {
+            // Viewmodel Weapon / Glove Skin Changer
+            if (g_SuspectCfg.weaponSkin > 0 && g_SuspectCfg.gloveSkin) {
+                if (g_SuspectCfg.skinGlow && shaderColored && u_SetShader) {
+                    u_SetShader(mat, shaderColored);
+                    if (u_SetInt) { u_SetInt(mat, fn_string_new("_ZTest"), 4); u_SetInt(mat, fn_string_new("_ZWrite"), 1); }
+                }
+                if (u_SetColor && fn_string_new) {
+                    u_SetColor(mat, fn_string_new("_Color"), skinCol);
+                    u_SetColor(mat, fn_string_new("_BaseColor"), skinCol);
+                }
+                if (u_SetFloat && fn_string_new) {
+                    u_SetFloat(mat, fn_string_new("_Metallic"), 0.95f);
+                    u_SetFloat(mat, fn_string_new("_Glossiness"), 0.98f);
+                }
+            }
+        } else if (g_SuspectCfg.chamsEnabled) {
+            // Enemy Chams Wallhack
+            if (shaderColored && u_SetShader) u_SetShader(mat, shaderColored);
+            if (u_SetInt && fn_string_new) {
+                u_SetInt(mat, fn_string_new("_ZTest"), 8); // Always visible through walls
+                u_SetInt(mat, fn_string_new("_ZWrite"), g_SuspectCfg.chamsGhost ? 0 : 1);
+                u_SetInt(mat, fn_string_new("_Cull"), 0);
+            }
+            if (u_SetColor && fn_string_new) {
+                u_SetColor(mat, fn_string_new("_Color"), chamsCol);
+            }
+        }
+
+        // ESP Box & Snaplines Projection
+        if (g_SuspectCfg.espEnabled && espPath && mainCam && u_WorldToScreen && u_get_transform && u_get_position) {
+            void* tr = u_get_transform(ren);
+            if (!tr) continue;
+            Vector3 worldPos = u_get_position(tr);
+            if (fabsf(worldPos.x) < 0.01f && fabsf(worldPos.z) < 0.01f) continue;
+
+            Vector3 scr = u_WorldToScreen(mainCam, worldPos);
+            if (scr.z > 1.2f) {
+                CGFloat sx = scr.x;
+                CGFloat sy = screenSize.height - scr.y;
+
+                if (g_SuspectCfg.espBoxes) {
+                    CGRect box = CGRectMake(sx - 18, sy - 38, 36, 76);
+                    [espPath appendPath:[UIBezierPath bezierPathWithRect:box]];
+                }
+                if (g_SuspectCfg.espHeadDot) {
+                    [espPath appendPath:[UIBezierPath bezierPathWithOvalInRect:CGRectMake(sx - 3, sy - 44, 6, 6)]];
+                }
+                if (g_SuspectCfg.espSnaplines) {
+                    [espPath moveToPoint:CGPointMake(screenSize.width * 0.5f, 0.0f)];
+                    [espPath addLineToPoint:CGPointMake(sx, sy)];
+                }
+            }
+        }
     }
 }
 
 // ============================================================================
-// 5. NATIVE iOS VIP MOD MENU & OVERLAY CONTROLLER
+// 4. SUSPECT VIP MOD MENU CONTROLLER (ENGLISH UI)
 // ============================================================================
-@interface CFModMenuController : UIViewController
-@property (nonatomic, strong) UIButton* floatingButton;
-@property (nonatomic, strong) UIView* menuPanel;
-@property (nonatomic, strong) UIScrollView* scrollView;
+@interface SuspectVIPController : UIViewController
+@property (nonatomic, strong) UIButton* floatingBtn;
+@property (nonatomic, strong) UIView* menuView;
+@property (nonatomic, strong) UIScrollView* scroll;
+@property (nonatomic, strong) CAShapeLayer* overlayLayer;
 @property (nonatomic, strong) CAShapeLayer* crosshairLayer;
 @property (nonatomic, strong) CADisplayLink* displayLink;
-@property (nonatomic, assign) int frameCounter;
 @end
 
-@implementation CFModMenuController
+@implementation SuspectVIPController
 
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor clearColor];
+
+    self.overlayLayer = [CAShapeLayer layer];
+    self.overlayLayer.frame = [UIScreen mainScreen].bounds;
+    self.overlayLayer.strokeColor = [UIColor colorWithRed:1.0 green:0.15 blue:0.25 alpha:0.95].CGColor;
+    self.overlayLayer.fillColor = [UIColor clearColor].CGColor;
+    self.overlayLayer.lineWidth = 1.3f;
+    [self.view.layer addSublayer:self.overlayLayer];
 
     self.crosshairLayer = [CAShapeLayer layer];
     self.crosshairLayer.frame = [UIScreen mainScreen].bounds;
@@ -534,278 +431,189 @@ void ApplyCoreNoRecoilAndCamera() {
     self.crosshairLayer.lineWidth = 1.8f;
     [self.view.layer addSublayer:self.crosshairLayer];
 
-    self.floatingButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    self.floatingButton.frame = CGRectMake(40, 85, 56, 56);
-    self.floatingButton.backgroundColor = [UIColor colorWithRed:0.08 green:0.05 blue:0.18 alpha:0.95];
-    self.floatingButton.layer.cornerRadius = 28;
-    self.floatingButton.layer.borderWidth = 2.2f;
-    self.floatingButton.layer.borderColor = [UIColor colorWithRed:1.0 green:0.65 blue:0.0f alpha:1.0].CGColor;
-    [self.floatingButton setTitle:@"CFv6" forState:UIControlStateNormal];
-    self.floatingButton.titleLabel.font = [UIFont boldSystemFontOfSize:14];
-    [self.floatingButton setTitleColor:[UIColor colorWithRed:1.0 green:0.75 blue:0.10 alpha:1.0] forState:UIControlStateNormal];
-    [self.floatingButton addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
+    // Floating Button
+    self.floatingBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+    self.floatingBtn.frame = CGRectMake(35, 85, 56, 56);
+    self.floatingBtn.backgroundColor = [UIColor colorWithRed:0.07 green:0.05 blue:0.14 alpha:0.96];
+    self.floatingBtn.layer.cornerRadius = 28;
+    self.floatingBtn.layer.borderWidth = 2.2f;
+    self.floatingBtn.layer.borderColor = [UIColor colorWithRed:0.65 green:0.22 blue:1.0 alpha:1.0].CGColor;
+    [self.floatingBtn setTitle:@"VIP" forState:UIControlStateNormal];
+    self.floatingBtn.titleLabel.font = [UIFont boldSystemFontOfSize:14];
+    [self.floatingBtn setTitleColor:[UIColor colorWithRed:0.85 green:0.50 blue:1.0 alpha:1.0] forState:UIControlStateNormal];
+    [self.floatingBtn addTarget:self action:@selector(toggleMenu) forControlEvents:UIControlEventTouchUpInside];
 
     UIPanGestureRecognizer* pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleDrag:)];
-    [self.floatingButton addGestureRecognizer:pan];
-    [self.view addSubview:self.floatingButton];
+    [self.floatingBtn addGestureRecognizer:pan];
+    [self.view addSubview:self.floatingBtn];
 
-    self.menuPanel = [[UIView alloc] initWithFrame:CGRectMake(60, 35, 330, 325)];
-    self.menuPanel.backgroundColor = [UIColor colorWithRed:0.05 green:0.05 blue:0.09 alpha:0.96];
-    self.menuPanel.layer.cornerRadius = 14;
-    self.menuPanel.layer.borderWidth = 1.6f;
-    self.menuPanel.layer.borderColor = [UIColor colorWithRed:1.0 green:0.65 blue:0.0f alpha:0.90].CGColor;
-    self.menuPanel.hidden = YES;
+    // Menu Panel
+    self.menuView = [[UIView alloc] initWithFrame:CGRectMake(65, 35, 330, 340)];
+    self.menuView.backgroundColor = [UIColor colorWithRed:0.05 green:0.05 blue:0.09 alpha:0.97];
+    self.menuView.layer.cornerRadius = 16;
+    self.menuView.layer.borderWidth = 1.8f;
+    self.menuView.layer.borderColor = [UIColor colorWithRed:0.60 green:0.20 blue:0.95 alpha:0.95].CGColor;
+    self.menuView.hidden = YES;
 
-    UILabel* title = [[UILabel alloc] initWithFrame:CGRectMake(0, 8, 330, 24)];
-    title.text = @"COUNTER FLAME v6 // KARAMBIT & VIP";
-    title.textColor = [UIColor colorWithRed:1.0 green:0.72 blue:0.10 alpha:1.0];
+    UILabel* title = [[UILabel alloc] initWithFrame:CGRectMake(0, 10, 330, 24)];
+    title.text = @"SUSPECT VIP MENU // v8.0";
+    title.textColor = [UIColor colorWithRed:0.75 green:0.35 blue:1.0 alpha:1.0];
     title.font = [UIFont boldSystemFontOfSize:13];
     title.textAlignment = NSTextAlignmentCenter;
-    [self.menuPanel addSubview:title];
+    [self.menuView addSubview:title];
 
-    self.scrollView = [[UIScrollView alloc] initWithFrame:CGRectMake(0, 36, 330, 282)];
-    self.scrollView.showsVerticalScrollIndicator = YES;
-    [self.menuPanel addSubview:self.scrollView];
+    self.scroll = [[UIScrollView alloc] initWithFrame:CGRectMake(0, 38, 330, 292)];
+    self.scroll.showsVerticalScrollIndicator = YES;
+    [self.menuView addSubview:self.scroll];
 
-    CGFloat y = 6;
+    CGFloat y = 8;
+    [self addHeader:@"VISUALS & ESP" y:&y];
+    [self addSwitch:@"Enable ESP (Boxes & Head)" y:&y tag:1 initial:g_SuspectCfg.espEnabled];
+    [self addSwitch:@"Snaplines to Enemies" y:&y tag:2 initial:g_SuspectCfg.espSnaplines];
 
-    // --- SECTION 1: KARAMBIT & KNIFE CHANGER ---
-    [self addSegment:@"Bicak Modeli (Karambit / Butterfly)"
-               items:@[@"Orj", @"Karambit", @"Butterfly", @"M9 Bayonet", @"Shadow"]
-                   y:&y tag:10 selected:g_Cfg.knifeModelMode];
-    [self addSegment:@"Bicak & Silah Skin (Kaplama)"
-               items:@[@"Orj", @"Altin", @"Ruby", @"Emerald", @"Dark", @"RGB Fade"]
-                   y:&y tag:20 selected:g_Cfg.knifeSkinMode];
-    [self addSwitch:@"Parlak Neon Metalik Efekt" y:&y tag:1 initial:g_Cfg.skinGlowEffect];
+    [self addHeader:@"WALLHACK CHAMS" y:&y];
+    [self addSwitch:@"Always Visible Chams" y:&y tag:3 initial:g_SuspectCfg.chamsEnabled];
+    [self addSegment:@"Chams Color" items:@[@"Red", @"Green", @"Cyan", @"RGB"] y:&y tag:10 selected:g_SuspectCfg.chamsColor];
+    [self addSwitch:@"Ghost / X-Ray Mode" y:&y tag:4 initial:g_SuspectCfg.chamsGhost];
 
-    // --- SECTION 2: CORE NO-RECOIL ---
-    [self addSegment:@"Sekmeme Gucu (Core No-Recoil)"
-               items:@[@"Kapali", @"%60", @"%85 Tam", @"%100 Lazer"]
-                   y:&y tag:30 selected:g_Cfg.recoilMode];
-    [self addSwitch:@"Silah Tepme & Titreme Kilidi (No Kick)" y:&y tag:2 initial:g_Cfg.noWeaponKick];
+    [self addHeader:@"KARAMBIT & SKIN CHANGER" y:&y];
+    [self addSegment:@"Knife Model" items:@[@"Default", @"Karambit", @"Butterfly", @"M9 Bayonet"] y:&y tag:20 selected:g_SuspectCfg.knifeModel];
+    [self addSegment:@"Weapon Skin" items:@[@"Original", @"Gold", @"Ruby", @"Emerald", @"Fade"] y:&y tag:30 selected:g_SuspectCfg.weaponSkin];
+    [self addSwitch:@"Glove & Sleeve Match" y:&y tag:5 initial:g_SuspectCfg.gloveSkin];
 
-    // --- SECTION 3: ENEMY CHAMS ---
-    [self addSwitch:@"Dusman Wallhack Chams" y:&y tag:3 initial:g_Cfg.chamsEnabled];
-    [self addSegment:@"Dusman Chams Rengi"
-               items:@[@"Kirmizi", @"Yesil", @"Mavi", @"Mor", @"Altin", @"RGB"]
-                   y:&y tag:40 selected:g_Cfg.chamsColorMode];
+    [self addHeader:@"COMBAT & STABILITY" y:&y];
+    [self addSegment:@"No-Recoil Strength" items:@[@"Off", @"Smooth", @"Laser Lock"] y:&y tag:40 selected:g_SuspectCfg.recoilMode];
+    [self addSwitch:@"Weapon Kick Lock" y:&y tag:6 initial:g_SuspectCfg.noKickShake];
 
-    // --- SECTION 4: CAMERA & CROSSHAIR ---
-    [self addSegment:@"Kamera Acisi (FOV & Zoom)"
-               items:@[@"Normal", @"90°", @"110° iPad", @"125°", @"Zoom"]
-                   y:&y tag:50 selected:g_Cfg.fovMode];
-    [self addSwitch:@"Duvar Arkasi Kesici (Wall-Peek)" y:&y tag:4 initial:g_Cfg.wallPeekXRay];
-    [self addSegment:@"Nisangah (Crosshair) Tipi"
-               items:@[@"Kapali", @"Arti+", @"Nokta", @"Cember", @"Sniper"]
-                   y:&y tag:60 selected:g_Cfg.crosshairStyle];
+    [self addHeader:@"CAMERA & SPEED" y:&y];
+    [self addSegment:@"FOV Mode" items:@[@"Normal", @"90°", @"110° iPad", @"125°"] y:&y tag:50 selected:g_SuspectCfg.fovMode];
+    [self addSwitch:@"Wall-Peek X-Ray" y:&y tag:7 initial:g_SuspectCfg.wallPeekXRay];
+    [self addSegment:@"Game Speed" items:@[@"1.0x", @"1.2x", @"1.5x", @"2.0x"] y:&y tag:60 selected:g_SuspectCfg.speedMode];
 
-    self.scrollView.contentSize = CGSizeMake(330, y + 20);
-    [self.view addSubview:self.menuPanel];
+    [self addHeader:@"CROSSHAIR" y:&y];
+    [self addSwitch:@"Custom Crosshair" y:&y tag:8 initial:g_SuspectCfg.crosshair];
 
-    self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(renderTick:)];
+    self.scroll.contentSize = CGSizeMake(330, y + 20);
+    [self.view addSubview:self.menuView];
+
+    self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
     [self.displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 }
 
-- (void)addSwitch:(NSString*)title y:(CGFloat*)y tag:(NSInteger)tag initial:(BOOL)val {
-    UILabel* lbl = [[UILabel alloc] initWithFrame:CGRectMake(14, *y, 240, 28)];
-    lbl.text = title;
-    lbl.textColor = [UIColor whiteColor];
-    lbl.font = [UIFont systemFontOfSize:12 weight:UIFontWeightMedium];
-    [self.scrollView addSubview:lbl];
-
-    UISwitch* sw = [[UISwitch alloc] initWithFrame:CGRectMake(262, *y, 50, 28)];
-    sw.on = val;
-    sw.tag = tag;
-    sw.onTintColor = [UIColor colorWithRed:1.0 green:0.65 blue:0.0f alpha:1.0];
-    [sw addTarget:self action:@selector(onSwitch:) forControlEvents:UIControlEventValueChanged];
-    [self.scrollView addSubview:sw];
-
-    *y += 35;
-}
-
-- (void)addSegment:(NSString*)title items:(NSArray<NSString*>*)items y:(CGFloat*)y tag:(NSInteger)tag selected:(NSInteger)sel {
-    UILabel* lbl = [[UILabel alloc] initWithFrame:CGRectMake(14, *y, 300, 18)];
-    lbl.text = title;
-    lbl.textColor = [UIColor colorWithRed:1.0 green:0.72 blue:0.10 alpha:1.0];
-    lbl.font = [UIFont boldSystemFontOfSize:11];
-    [self.scrollView addSubview:lbl];
+- (void)addHeader:(NSString*)txt y:(CGFloat*)y {
+    UILabel* h = [[UILabel alloc] initWithFrame:CGRectMake(14, *y, 300, 18)];
+    h.text = txt; h.textColor = [UIColor colorWithRed:0.85 green:0.55 blue:1.0 alpha:1.0];
+    h.font = [UIFont boldSystemFontOfSize:11];
+    [self.scroll addSubview:h];
     *y += 20;
+}
 
-    UISegmentedControl* seg = [[UISegmentedControl alloc] initWithItems:items];
-    seg.frame = CGRectMake(12, *y, 306, 28);
-    seg.selectedSegmentIndex = sel;
-    seg.tag = tag;
-    seg.backgroundColor = [UIColor colorWithWhite:0.15 alpha:1.0];
-    seg.selectedSegmentTintColor = [UIColor colorWithRed:0.90 green:0.55 blue:0.04 alpha:1.0];
-    [seg setTitleTextAttributes:@{NSForegroundColorAttributeName: [UIColor whiteColor], NSFontAttributeName: [UIFont boldSystemFontOfSize:10]} forState:UIControlStateNormal];
-    [seg addTarget:self action:@selector(onSegment:) forControlEvents:UIControlEventValueChanged];
-    [self.scrollView addSubview:seg];
+- (void)addSwitch:(NSString*)txt y:(CGFloat*)y tag:(NSInteger)tag initial:(BOOL)val {
+    UILabel* l = [[UILabel alloc] initWithFrame:CGRectMake(14, *y, 230, 26)];
+    l.text = txt; l.textColor = [UIColor whiteColor]; l.font = [UIFont systemFontOfSize:12];
+    [self.scroll addSubview:l];
 
+    UISwitch* s = [[UISwitch alloc] initWithFrame:CGRectMake(254, *y, 50, 26)];
+    s.on = val; s.tag = tag; s.onTintColor = [UIColor colorWithRed:0.60 green:0.20 blue:0.95 alpha:1.0];
+    [s addTarget:self action:@selector(onSwitch:) forControlEvents:UIControlEventValueChanged];
+    [self.scroll addSubview:s];
+    *y += 34;
+}
+
+- (void)addSegment:(NSString*)txt items:(NSArray*)items y:(CGFloat*)y tag:(NSInteger)tag selected:(NSInteger)sel {
+    UILabel* l = [[UILabel alloc] initWithFrame:CGRectMake(14, *y, 300, 16)];
+    l.text = txt; l.textColor = [UIColor colorWithRed:0.75 green:0.35 blue:1.0 alpha:1.0];
+    l.font = [UIFont boldSystemFontOfSize:11];
+    [self.scroll addSubview:l];
+    *y += 18;
+
+    UISegmentedControl* sc = [[UISegmentedControl alloc] initWithItems:items];
+    sc.frame = CGRectMake(12, *y, 306, 26);
+    sc.selectedSegmentIndex = sel; sc.tag = tag;
+    sc.backgroundColor = [UIColor colorWithWhite:0.15 alpha:1.0];
+    sc.selectedSegmentTintColor = [UIColor colorWithRed:0.55 green:0.18 blue:0.90 alpha:1.0];
+    [sc setTitleTextAttributes:@{NSForegroundColorAttributeName:[UIColor whiteColor], NSFontAttributeName:[UIFont boldSystemFontOfSize:10]} forState:UIControlStateNormal];
+    [sc addTarget:self action:@selector(onSegment:) forControlEvents:UIControlEventValueChanged];
+    [self.scroll addSubview:sc];
     *y += 35;
 }
 
-- (void)onSwitch:(UISwitch*)sender {
-    switch (sender.tag) {
-        case 1: g_Cfg.skinGlowEffect = sender.isOn; break;
-        case 2: g_Cfg.noWeaponKick   = sender.isOn; break;
-        case 3: g_Cfg.chamsEnabled   = sender.isOn; break;
-        case 4: g_Cfg.wallPeekXRay   = sender.isOn; break;
-    }
-    ApplyKarambitAndSkins(CACurrentMediaTime());
-    ApplyCoreNoRecoilAndCamera();
+- (void)onSwitch:(UISwitch*)s {
+    if (s.tag == 1) g_SuspectCfg.espEnabled = s.isOn;
+    if (s.tag == 2) g_SuspectCfg.espSnaplines = s.isOn;
+    if (s.tag == 3) g_SuspectCfg.chamsEnabled = s.isOn;
+    if (s.tag == 4) g_SuspectCfg.chamsGhost = s.isOn;
+    if (s.tag == 5) g_SuspectCfg.gloveSkin = s.isOn;
+    if (s.tag == 6) g_SuspectCfg.noKickShake = s.isOn;
+    if (s.tag == 7) g_SuspectCfg.wallPeekXRay = s.isOn;
+    if (s.tag == 8) g_SuspectCfg.crosshair = s.isOn;
 }
 
-- (void)onSegment:(UISegmentedControl*)sender {
-    NSInteger idx = sender.selectedSegmentIndex;
-    switch (sender.tag) {
-        case 10: g_Cfg.knifeModelMode = (int)idx; break;
-        case 20: g_Cfg.knifeSkinMode  = (int)idx; break;
-        case 30: g_Cfg.recoilMode     = (int)idx; break;
-        case 40: g_Cfg.chamsColorMode = (int)idx; break;
-        case 50:
-            g_Cfg.fovMode = (int)idx;
-            if (idx == 0 && u_Camera_get_main && u_Camera_set_fov) {
-                void* cam = u_Camera_get_main();
-                if (cam) u_Camera_set_fov(cam, g_DefaultFOV);
-            }
-            break;
-        case 60: g_Cfg.crosshairStyle = (int)idx; break;
-    }
-    ApplyKarambitAndSkins(CACurrentMediaTime());
-    ApplyCoreNoRecoilAndCamera();
+- (void)onSegment:(UISegmentedControl*)sc {
+    if (sc.tag == 10) g_SuspectCfg.chamsColor = (int)sc.selectedSegmentIndex;
+    if (sc.tag == 20) g_SuspectCfg.knifeModel = (int)sc.selectedSegmentIndex;
+    if (sc.tag == 30) g_SuspectCfg.weaponSkin = (int)sc.selectedSegmentIndex;
+    if (sc.tag == 40) g_SuspectCfg.recoilMode = (int)sc.selectedSegmentIndex;
+    if (sc.tag == 50) g_SuspectCfg.fovMode = (int)sc.selectedSegmentIndex;
+    if (sc.tag == 60) g_SuspectCfg.speedMode = (int)sc.selectedSegmentIndex;
 }
 
-- (void)toggleMenu {
-    self.menuPanel.hidden = !self.menuPanel.hidden;
+- (void)toggleMenu { self.menuView.hidden = !self.menuView.hidden; }
+
+- (void)handleDrag:(UIPanGestureRecognizer*)g {
+    CGPoint pt = [g translationInView:self.view];
+    g.view.center = CGPointMake(g.view.center.x + pt.x, g.view.center.y + pt.y);
+    [g setTranslation:CGPointZero inView:self.view];
 }
 
-- (void)handleDrag:(UIPanGestureRecognizer*)gesture {
-    CGPoint translation = [gesture translationInView:self.view];
-    gesture.view.center = CGPointMake(gesture.view.center.x + translation.x, gesture.view.center.y + translation.y);
-    [gesture setTranslation:CGPointZero inView:self.view];
-}
+- (void)tick:(CADisplayLink*)link {
+    CGRect b = self.view.bounds;
+    self.overlayLayer.frame = b;
 
-- (void)renderTick:(CADisplayLink*)link {
-    self.frameCounter++;
-    CFTimeInterval now = link.timestamp;
+    UIBezierPath* espPath = g_SuspectCfg.espEnabled ? [UIBezierPath bezierPath] : nil;
+    ExecuteSuspectEngine(espPath, b.size, link.timestamp);
+    self.overlayLayer.path = espPath ? espPath.CGPath : NULL;
 
-    ApplyCoreNoRecoilAndCamera();
-
-    int interval = (g_Cfg.knifeSkinMode == 5 || g_Cfg.chamsColorMode == 5) ? 5 : 30;
-    if (self.frameCounter % interval == 0) {
-        ApplyKarambitAndSkins(now);
-    }
-
-    if (g_Cfg.crosshairStyle == 0) {
+    // Crosshair Render
+    if (!g_SuspectCfg.crosshair) {
         self.crosshairLayer.path = NULL;
         return;
     }
-
-    CGRect bounds = self.view.bounds;
-    self.crosshairLayer.frame = bounds;
-
-    if (g_Cfg.crosshairRGB) {
-        CGFloat hue = fmod(now * 0.45, 1.0);
-        self.crosshairLayer.strokeColor = [UIColor colorWithHue:hue saturation:1.0 brightness:1.0 alpha:0.95].CGColor;
-    } else {
-        self.crosshairLayer.strokeColor = [UIColor colorWithRed:0.0 green:1.0 blue:0.45 alpha:0.95].CGColor;
-    }
-
-    CGFloat cx = bounds.size.width * 0.5f;
-    CGFloat cy = bounds.size.height * 0.5f;
-    UIBezierPath* path = [UIBezierPath bezierPath];
-
-    switch (g_Cfg.crosshairStyle) {
-        case 1:
-            [path moveToPoint:CGPointMake(cx - 12, cy)];
-            [path addLineToPoint:CGPointMake(cx + 12, cy)];
-            [path moveToPoint:CGPointMake(cx, cy - 12)];
-            [path addLineToPoint:CGPointMake(cx, cy + 12)];
-            [path addArcWithCenter:CGPointMake(cx, cy) radius:4.0f startAngle:0 endAngle:(CGFloat)(M_PI * 2.0) clockwise:YES];
-            break;
-        case 2:
-            [path addArcWithCenter:CGPointMake(cx, cy) radius:2.2f startAngle:0 endAngle:(CGFloat)(M_PI * 2.0) clockwise:YES];
-            [path addArcWithCenter:CGPointMake(cx, cy) radius:4.0f startAngle:0 endAngle:(CGFloat)(M_PI * 2.0) clockwise:YES];
-            break;
-        case 3:
-            [path addArcWithCenter:CGPointMake(cx, cy) radius:10.0f startAngle:0 endAngle:(CGFloat)(M_PI * 2.0) clockwise:YES];
-            [path moveToPoint:CGPointMake(cx - 16, cy)];
-            [path addLineToPoint:CGPointMake(cx - 6, cy)];
-            [path moveToPoint:CGPointMake(cx + 6, cy)];
-            [path addLineToPoint:CGPointMake(cx + 16, cy)];
-            [path moveToPoint:CGPointMake(cx, cy - 16)];
-            [path addLineToPoint:CGPointMake(cx, cy - 6)];
-            [path moveToPoint:CGPointMake(cx, cy + 6)];
-            [path addLineToPoint:CGPointMake(cx, cy + 16)];
-            break;
-        case 4:
-            [path addArcWithCenter:CGPointMake(cx, cy) radius:28.0f startAngle:0 endAngle:(CGFloat)(M_PI * 2.0) clockwise:YES];
-            [path addArcWithCenter:CGPointMake(cx, cy) radius:2.5f startAngle:0 endAngle:(CGFloat)(M_PI * 2.0) clockwise:YES];
-            [path moveToPoint:CGPointMake(cx - 120, cy)];
-            [path addLineToPoint:CGPointMake(cx + 120, cy)];
-            [path moveToPoint:CGPointMake(cx, cy - 90)];
-            [path addLineToPoint:CGPointMake(cx, cy + 90)];
-            break;
-    }
-
-    self.crosshairLayer.path = path.CGPath;
+    self.crosshairLayer.frame = b;
+    CGFloat cx = b.size.width * 0.5f, cy = b.size.height * 0.5f;
+    UIBezierPath* ch = [UIBezierPath bezierPath];
+    [ch moveToPoint:CGPointMake(cx - 10, cy)]; [ch addLineToPoint:CGPointMake(cx + 10, cy)];
+    [ch moveToPoint:CGPointMake(cx, cy - 10)]; [ch addLineToPoint:CGPointMake(cx, cy + 10)];
+    [ch addArcWithCenter:CGPointMake(cx, cy) radius:3.0f startAngle:0 endAngle:(CGFloat)(M_PI * 2.0) clockwise:YES];
+    self.crosshairLayer.path = ch.CGPath;
 }
 
 @end
 
-@interface CFPassthroughWindow : UIWindow
+@interface SuspectWindow : UIWindow
 @end
 
-@implementation CFPassthroughWindow
-- (UIView*)hitTest:(CGPoint)point withEvent:(UIEvent*)event {
-    CGSize screen = [UIScreen mainScreen].bounds.size;
-    if (point.x > screen.width * 0.45f) {
-        g_IsFiringHold = true;
-    }
-    UIView* hitView = [super hitTest:point withEvent:event];
-    if (hitView == self || hitView == self.rootViewController.view) {
-        return nil;
-    }
-    return hitView;
+@implementation SuspectWindow
+- (UIView*)hitTest:(CGPoint)pt withEvent:(UIEvent*)ev {
+    CGSize sz = [UIScreen mainScreen].bounds.size;
+    g_IsFiring = (pt.x > sz.width * 0.45f);
+    UIView* hv = [super hitTest:pt withEvent:ev];
+    return (hv == self || hv == self.rootViewController.view) ? nil : hv;
 }
 @end
 
-static CFPassthroughWindow* g_OverlayWindow = nil;
-
-static void AttachOverlayWindow() {
-    if (g_OverlayWindow != nil) return;
-
-    UIWindowScene* activeScene = nil;
-    for (UIScene* scene in [UIApplication sharedApplication].connectedScenes) {
-        if ([scene isKindOfClass:[UIWindowScene class]]) {
-            activeScene = (UIWindowScene*)scene;
-            if (scene.activationState == UISceneActivationStateForegroundActive) {
-                break;
-            }
-        }
-    }
-
-    CGRect bounds = [UIScreen mainScreen].bounds;
-    if (activeScene) {
-        g_OverlayWindow = [[CFPassthroughWindow alloc] initWithWindowScene:activeScene];
-        g_OverlayWindow.frame = bounds;
-    } else {
-        g_OverlayWindow = [[CFPassthroughWindow alloc] initWithFrame:bounds];
-    }
-
-    g_OverlayWindow.windowLevel = UIWindowLevelAlert + 500;
-    g_OverlayWindow.backgroundColor = [UIColor clearColor];
-    g_OverlayWindow.rootViewController = [[CFModMenuController alloc] init];
-    g_OverlayWindow.hidden = NO;
-    [g_OverlayWindow makeKeyAndVisible];
-}
+static SuspectWindow* g_SuspectWin = nil;
 
 __attribute__((constructor))
-static void InitializeCounterFlameDylib() {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        AttachOverlayWindow();
-        InitUnityEngineAPI();
-        ApplyKarambitAndSkins(CACurrentMediaTime());
-        ApplyCoreNoRecoilAndCamera();
+static void LoadSuspectVIP() {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        InitSuspectEngine();
+        CGRect bounds = [UIScreen mainScreen].bounds;
+        g_SuspectWin = [[SuspectWindow alloc] initWithFrame:bounds];
+        g_SuspectWin.windowLevel = UIWindowLevelAlert + 1000;
+        g_SuspectWin.backgroundColor = [UIColor clearColor];
+        g_SuspectWin.rootViewController = [[SuspectVIPController alloc] init];
+        g_SuspectWin.hidden = NO;
+        [g_SuspectWin makeKeyAndVisible];
     });
 }
